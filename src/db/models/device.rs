@@ -203,6 +203,19 @@ impl Device {
                 .from_db()
         }}
     }
+
+    pub async fn find_unregistered_push_devices_by_user(user_uuid: &str, conn: &mut DbConn) -> Vec<Self> {
+        db_run! { conn: {
+            devices::table
+                .filter(devices::user_uuid.eq(user_uuid))
+                .filter(devices::atype.eq(DeviceType::Android as i32).or(devices::atype.eq(DeviceType::Ios as i32)))
+                .filter(devices::push_uuid.is_null())
+                .load::<DeviceDb>(conn)
+                .expect("Error loading mobile devices")
+                .from_db()
+        }}
+    }
+
     pub async fn find_push_devices_by_user(user_uuid: &str, conn: &mut DbConn) -> Vec<Self> {
         db_run! { conn: {
             devices::table

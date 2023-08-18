@@ -955,10 +955,6 @@ async fn post_device_token(uuid: &str, data: JsonUpcase<PushToken>, headers: Hea
 
 #[put("/devices/identifier/<uuid>/token", data = "<data>")]
 async fn put_device_token(uuid: &str, data: JsonUpcase<PushToken>, headers: Headers, mut conn: DbConn) -> EmptyResult {
-    if !CONFIG.push_enabled() {
-        return Ok(());
-    }
-
     let data = data.into_inner().data;
     let token = data.PushToken;
     let mut device = match Device::find_by_uuid_and_user(&headers.device.uuid, &headers.user.uuid, &mut conn).await {
@@ -966,14 +962,18 @@ async fn put_device_token(uuid: &str, data: JsonUpcase<PushToken>, headers: Head
         None => err!(format!("Error: device {uuid} should be present before a token can be assigned")),
     };
     device.push_token = Some(token);
-    if device.push_uuid.is_none() {
+    /* only generate a new push_uuid if push is enabled, so we can call register_push_device later */
+    if device.push_uuid.is_none() && CONFIG.push_enabled() {
         device.push_uuid = Some(uuid::Uuid::new_v4().to_string());
     }
     if let Err(e) = device.save(&mut conn).await {
         err!(format!("An error occurred while trying to save the device push token: {e}"));
     }
-    if let Err(e) = register_push_device(headers.user.uuid, device).await {
-        err!(format!("An error occurred while proceeding registration of a device: {e}"));
+
+    if CONFIG.push_enabled() {
+        if let Err(e) = register_push_device(device).await {
+            err!(format!("An error occurred while proceeding registration of a device: {e}"));
+        }
     }
 
     Ok(())

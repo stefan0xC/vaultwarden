@@ -72,7 +72,48 @@ async fn get_auth_push_token() -> ApiResult<String> {
     Ok(push_token.access_token.clone())
 }
 
-pub async fn register_push_device(user_uuid: String, device: Device) -> EmptyResult {
+pub async fn register_missing_push_devices_for_user(user_uuid: &str, conn: &mut crate::db::DbConn) -> EmptyResult {
+    if !CONFIG.push_enabled() {
+        return Ok(());
+    }
+
+    let devices = Device::find_unregistered_push_devices_by_user(user_uuid, conn).await;
+
+    if devices.is_empty() {
+        debug!("No push device needs to be registered.");
+        return Ok(());
+    }
+
+    // Prevent registration of too many devices at once.
+    if devices.len() > 2 {
+        debug!(
+            "You account has too many ({}) unregistered push devices. Consider cleaning up your devices table.",
+            devices.len()
+        );
+        return Ok(());
+    }
+
+    // find all mobile devices that have not been registered
+    for mut device in devices {
+        debug!("Registering Device {}", device.uuid);
+        // generate a random push_uuid so we know the device is registered
+        device.push_uuid = Some(uuid::Uuid::new_v4().to_string());
+        // set a push token in case it's empty
+        if device.push_token.is_none() {
+            debug!("Skipping device registration because of an empty push token.");
+            continue;
+        }
+        if let Err(e) = device.save(conn).await {
+            err!(format!("An error occured while trying to save the device push token: {e}"));
+        }
+        if let Err(e) = register_push_device(device).await {
+            err!(format!("An error occured while proceeding registration of a device: {e}"));
+        }
+    }
+    Ok(())
+}
+
+pub async fn register_push_device(device: Device) -> EmptyResult {
     if !CONFIG.push_enabled() {
         return Ok(());
     }
@@ -80,7 +121,7 @@ pub async fn register_push_device(user_uuid: String, device: Device) -> EmptyRes
 
     //Needed to register a device for push to bitwarden :
     let data = json!({
-        "userId": user_uuid,
+        "userId": device.user_uuid,
         "deviceId": device.push_uuid,
         "identifier": device.uuid,
         "type": device.atype,

@@ -12,6 +12,7 @@ use crate::{
         core::accounts::{PreloginData, RegisterData, _prelogin, _register},
         core::log_user_event,
         core::two_factor::{duo, email, email::EmailTokenData, yubikey},
+        push::register_missing_push_devices_for_user,
         ApiResult, EmptyResult, JsonResult, JsonUpcase,
     },
     auth::{generate_organization_api_key_login_claims, ClientHeaders, ClientIp},
@@ -205,6 +206,9 @@ async fn _password_login(
             }
         )
     }
+
+    // Register possible missing push devices
+    register_missing_push_devices_for_user(&user.uuid, conn).await?;
 
     let now = Utc::now().naive_utc();
 
