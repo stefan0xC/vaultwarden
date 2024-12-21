@@ -1,6 +1,7 @@
 use crate::db::DbConn;
 use serde_json::Value;
 
+use super::OrganizationId;
 use crate::{api::EmptyResult, error::MapResult, CONFIG};
 
 use chrono::{NaiveDateTime, TimeDelta, Utc};
@@ -18,7 +19,7 @@ db_object! {
         pub uuid: String,
         pub event_type: i32, // EventType
         pub user_uuid: Option<String>,
-        pub org_uuid: Option<String>,
+        pub org_uuid: Option<OrganizationId>,
         pub cipher_uuid: Option<String>,
         pub collection_uuid: Option<String>,
         pub group_uuid: Option<String>,
