@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use super::{
     Attachment, CollectionCipher, Favorite, FolderCipher, Group, Membership, MembershipStatus, MembershipType,
-    OrganizationId, User,
+    OrganizationId, User, UserId,
 };
 
 use crate::api::core::{CipherData, CipherSyncData, CipherSyncType};
@@ -22,7 +22,7 @@ db_object! {
         pub created_at: NaiveDateTime,
         pub updated_at: NaiveDateTime,
 
-        pub user_uuid: Option<String>,
+        pub user_uuid: Option<UserId>,
         pub organization_uuid: Option<OrganizationId>,
 
         pub key: Option<String>,
@@ -136,7 +136,7 @@ impl Cipher {
     pub async fn to_json(
         &self,
         host: &str,
-        user_uuid: &str,
+        user_uuid: &UserId,
         cipher_sync_data: Option<&CipherSyncData>,
         sync_type: CipherSyncType,
         conn: &mut DbConn,
@@ -357,7 +357,7 @@ impl Cipher {
         json_object
     }
 
-    pub async fn update_users_revision(&self, conn: &mut DbConn) -> Vec<String> {
+    pub async fn update_users_revision(&self, conn: &mut DbConn) -> Vec<UserId> {
         let mut user_uuids = Vec::new();
         match self.user_uuid {
             Some(ref user_uuid) => {
@@ -443,7 +443,7 @@ impl Cipher {
         Ok(())
     }
 
-    pub async fn delete_all_by_user(user_uuid: &str, conn: &mut DbConn) -> EmptyResult {
+    pub async fn delete_all_by_user(user_uuid: &UserId, conn: &mut DbConn) -> EmptyResult {
         for cipher in Self::find_owned_by_user(user_uuid, conn).await {
             cipher.delete(conn).await?;
         }
@@ -461,7 +461,12 @@ impl Cipher {
         }
     }
 
-    pub async fn move_to_folder(&self, folder_uuid: Option<String>, user_uuid: &str, conn: &mut DbConn) -> EmptyResult {
+    pub async fn move_to_folder(
+        &self,
+        folder_uuid: Option<String>,
+        user_uuid: &UserId,
+        conn: &mut DbConn,
+    ) -> EmptyResult {
         User::update_uuid_revision(user_uuid, conn).await;
 
         match (self.get_folder_uuid(user_uuid, conn).await, folder_uuid) {
@@ -489,14 +494,14 @@ impl Cipher {
     }
 
     /// Returns whether this cipher is directly owned by the user.
-    pub fn is_owned_by_user(&self, user_uuid: &str) -> bool {
+    pub fn is_owned_by_user(&self, user_uuid: &UserId) -> bool {
         self.user_uuid.is_some() && self.user_uuid.as_ref().unwrap() == user_uuid
     }
 
     /// Returns whether this cipher is owned by an org in which the user has full access.
     async fn is_in_full_access_org(
         &self,
-        user_uuid: &str,
+        user_uuid: &UserId,
         cipher_sync_data: Option<&CipherSyncData>,
         conn: &mut DbConn,
     ) -> bool {
@@ -515,7 +520,7 @@ impl Cipher {
     /// Returns whether this cipher is owned by an group in which the user has full access.
     async fn is_in_full_access_group(
         &self,
-        user_uuid: &str,
+        user_uuid: &UserId,
         cipher_sync_data: Option<&CipherSyncData>,
         conn: &mut DbConn,
     ) -> bool {
@@ -539,7 +544,7 @@ impl Cipher {
     /// the access restrictions.
     pub async fn get_access_restrictions(
         &self,
-        user_uuid: &str,
+        user_uuid: &UserId,
         cipher_sync_data: Option<&CipherSyncData>,
         conn: &mut DbConn,
     ) -> Option<(bool, bool)> {
@@ -599,7 +604,7 @@ impl Cipher {
         Some((read_only, hide_passwords))
     }
 
-    async fn get_user_collections_access_flags(&self, user_uuid: &str, conn: &mut DbConn) -> Vec<(bool, bool)> {
+    async fn get_user_collections_access_flags(&self, user_uuid: &UserId, conn: &mut DbConn) -> Vec<(bool, bool)> {
         db_run! {conn: {
             // Check whether this cipher is in any collections accessible to the
             // user. If so, retrieve the access flags for each collection.
@@ -616,7 +621,7 @@ impl Cipher {
         }}
     }
 
-    async fn get_group_collections_access_flags(&self, user_uuid: &str, conn: &mut DbConn) -> Vec<(bool, bool)> {
+    async fn get_group_collections_access_flags(&self, user_uuid: &UserId, conn: &mut DbConn) -> Vec<(bool, bool)> {
         if !CONFIG.org_groups_enabled() {
             return Vec::new();
         }
@@ -642,31 +647,31 @@ impl Cipher {
         }}
     }
 
-    pub async fn is_write_accessible_to_user(&self, user_uuid: &str, conn: &mut DbConn) -> bool {
+    pub async fn is_write_accessible_to_user(&self, user_uuid: &UserId, conn: &mut DbConn) -> bool {
         match self.get_access_restrictions(user_uuid, None, conn).await {
             Some((read_only, _hide_passwords)) => !read_only,
             None => false,
         }
     }
 
-    pub async fn is_accessible_to_user(&self, user_uuid: &str, conn: &mut DbConn) -> bool {
+    pub async fn is_accessible_to_user(&self, user_uuid: &UserId, conn: &mut DbConn) -> bool {
         self.get_access_restrictions(user_uuid, None, conn).await.is_some()
     }
 
     // Returns whether this cipher is a favorite of the specified user.
-    pub async fn is_favorite(&self, user_uuid: &str, conn: &mut DbConn) -> bool {
+    pub async fn is_favorite(&self, user_uuid: &UserId, conn: &mut DbConn) -> bool {
         Favorite::is_favorite(&self.uuid, user_uuid, conn).await
     }
 
     // Sets whether this cipher is a favorite of the specified user.
-    pub async fn set_favorite(&self, favorite: Option<bool>, user_uuid: &str, conn: &mut DbConn) -> EmptyResult {
+    pub async fn set_favorite(&self, favorite: Option<bool>, user_uuid: &UserId, conn: &mut DbConn) -> EmptyResult {
         match favorite {
             None => Ok(()), // No change requested.
             Some(status) => Favorite::set_favorite(status, &self.uuid, user_uuid, conn).await,
         }
     }
 
-    pub async fn get_folder_uuid(&self, user_uuid: &str, conn: &mut DbConn) -> Option<String> {
+    pub async fn get_folder_uuid(&self, user_uuid: &UserId, conn: &mut DbConn) -> Option<String> {
         db_run! {conn: {
             folders_ciphers::table
                 .inner_join(folders::table)
@@ -711,7 +716,7 @@ impl Cipher {
     // true, then the non-interesting ciphers will not be returned. As a
     // result, those ciphers will not appear in "My Vault" for the org
     // owner/admin, but they can still be accessed via the org vault view.
-    pub async fn find_by_user(user_uuid: &str, visible_only: bool, conn: &mut DbConn) -> Vec<Self> {
+    pub async fn find_by_user(user_uuid: &UserId, visible_only: bool, conn: &mut DbConn) -> Vec<Self> {
         if CONFIG.org_groups_enabled() {
             db_run! {conn: {
                 let mut query = ciphers::table
@@ -793,12 +798,12 @@ impl Cipher {
     }
 
     // Find all ciphers visible to the specified user.
-    pub async fn find_by_user_visible(user_uuid: &str, conn: &mut DbConn) -> Vec<Self> {
+    pub async fn find_by_user_visible(user_uuid: &UserId, conn: &mut DbConn) -> Vec<Self> {
         Self::find_by_user(user_uuid, true, conn).await
     }
 
     // Find all ciphers directly owned by the specified user.
-    pub async fn find_owned_by_user(user_uuid: &str, conn: &mut DbConn) -> Vec<Self> {
+    pub async fn find_owned_by_user(user_uuid: &UserId, conn: &mut DbConn) -> Vec<Self> {
         db_run! {conn: {
             ciphers::table
                 .filter(
@@ -809,7 +814,7 @@ impl Cipher {
         }}
     }
 
-    pub async fn count_owned_by_user(user_uuid: &str, conn: &mut DbConn) -> i64 {
+    pub async fn count_owned_by_user(user_uuid: &UserId, conn: &mut DbConn) -> i64 {
         db_run! {conn: {
             ciphers::table
                 .filter(ciphers::user_uuid.eq(user_uuid))
