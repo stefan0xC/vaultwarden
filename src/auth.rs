@@ -482,19 +482,19 @@ impl<'r> FromRequest<'r> for Headers {
             err_handler!("Invalid claim")
         };
 
-        let device_uuid = claims.device;
-        let user_uuid = claims.sub;
+        let device_id = claims.device;
+        let user_id = claims.sub;
 
         let mut conn = match DbConn::from_request(request).await {
             Outcome::Success(conn) => conn,
             _ => err_handler!("Error getting DB"),
         };
 
-        let Some(device) = Device::find_by_uuid_and_user(&device_uuid, &user_uuid, &mut conn).await else {
+        let Some(device) = Device::find_by_uuid_and_user(&device_id, &user_id, &mut conn).await else {
             err_handler!("Invalid device id")
         };
 
-        let Some(user) = User::find_by_uuid(&user_uuid, &mut conn).await else {
+        let Some(user) = User::find_by_uuid(&user_id, &mut conn).await else {
             err_handler!("Device has no user associated")
         };
 

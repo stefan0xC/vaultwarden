@@ -328,8 +328,8 @@ pub struct WebSocketUsers {
 }
 
 impl WebSocketUsers {
-    async fn send_update(&self, user_uuid: &UserId, data: &[u8]) {
-        if let Some(user) = self.map.get(user_uuid.as_ref()).map(|v| v.clone()) {
+    async fn send_update(&self, user_id: &UserId, data: &[u8]) {
+        if let Some(user) = self.map.get(user_id.as_ref()).map(|v| v.clone()) {
             for (_, sender) in user.iter() {
                 if let Err(e) = sender.send(Message::binary(data)).await {
                     error!("Error sending WS update {e}");
@@ -413,7 +413,7 @@ impl WebSocketUsers {
         &self,
         ut: UpdateType,
         cipher: &Cipher,
-        user_uuids: &[UserId],
+        user_ids: &[UserId],
         acting_device_uuid: &DeviceId,
         collection_uuids: Option<Vec<CollectionId>>,
         conn: &mut DbConn,
@@ -422,10 +422,10 @@ impl WebSocketUsers {
         if *NOTIFICATIONS_DISABLED {
             return;
         }
-        let org_uuid = convert_option(cipher.organization_uuid.as_deref());
+        let org_id = convert_option(cipher.organization_uuid.as_deref());
         // Depending if there are collections provided or not, we need to have different values for the following variables.
         // The user_uuid should be `null`, and the revision date should be set to now, else the clients won't sync the collection change.
-        let (user_uuid, collection_uuids, revision_date) = if let Some(collection_uuids) = collection_uuids {
+        let (user_id, collection_uuids, revision_date) = if let Some(collection_uuids) = collection_uuids {
             (
                 Value::Nil,
                 Value::Array(collection_uuids.into_iter().map(|v| v.to_string().into()).collect::<Vec<Value>>()),
@@ -438,8 +438,8 @@ impl WebSocketUsers {
         let data = create_update(
             vec![
                 ("Id".into(), cipher.uuid.to_string().into()),
-                ("UserId".into(), user_uuid),
-                ("OrganizationId".into(), org_uuid),
+                ("UserId".into(), user_id),
+                ("OrganizationId".into(), org_id),
                 ("CollectionIds".into(), collection_uuids),
                 ("RevisionDate".into(), revision_date),
             ],
@@ -448,12 +448,12 @@ impl WebSocketUsers {
         );
 
         if CONFIG.enable_websocket() {
-            for uuid in user_uuids {
+            for uuid in user_ids {
                 self.send_update(uuid, &data).await;
             }
         }
 
-        if CONFIG.push_enabled() && user_uuids.len() == 1 {
+        if CONFIG.push_enabled() && user_ids.len() == 1 {
             push_cipher_update(ut, cipher, acting_device_uuid, conn).await;
         }
     }
@@ -462,7 +462,7 @@ impl WebSocketUsers {
         &self,
         ut: UpdateType,
         send: &DbSend,
-        user_uuids: &[UserId],
+        user_ids: &[UserId],
         acting_device_uuid: &DeviceId,
         conn: &mut DbConn,
     ) {
@@ -470,12 +470,12 @@ impl WebSocketUsers {
         if *NOTIFICATIONS_DISABLED {
             return;
         }
-        let user_uuid = convert_option(send.user_uuid.as_deref());
+        let user_id = convert_option(send.user_uuid.as_deref());
 
         let data = create_update(
             vec![
                 ("Id".into(), send.uuid.to_string().into()),
-                ("UserId".into(), user_uuid),
+                ("UserId".into(), user_id),
                 ("RevisionDate".into(), serialize_date(send.revision_date)),
             ],
             ut,
@@ -483,18 +483,18 @@ impl WebSocketUsers {
         );
 
         if CONFIG.enable_websocket() {
-            for uuid in user_uuids {
+            for uuid in user_ids {
                 self.send_update(uuid, &data).await;
             }
         }
-        if CONFIG.push_enabled() && user_uuids.len() == 1 {
+        if CONFIG.push_enabled() && user_ids.len() == 1 {
             push_send_update(ut, send, acting_device_uuid, conn).await;
         }
     }
 
     pub async fn send_auth_request(
         &self,
-        user_uuid: &UserId,
+        user_id: &UserId,
         auth_request_uuid: &String,
         acting_device_uuid: &DeviceId,
         conn: &mut DbConn,
@@ -504,22 +504,22 @@ impl WebSocketUsers {
             return;
         }
         let data = create_update(
-            vec![("Id".into(), auth_request_uuid.clone().into()), ("UserId".into(), user_uuid.to_string().into())],
+            vec![("Id".into(), auth_request_uuid.clone().into()), ("UserId".into(), user_id.to_string().into())],
             UpdateType::AuthRequest,
             Some(acting_device_uuid.to_string()),
         );
         if CONFIG.enable_websocket() {
-            self.send_update(user_uuid, &data).await;
+            self.send_update(user_id, &data).await;
         }
 
         if CONFIG.push_enabled() {
-            push_auth_request(user_uuid.clone(), auth_request_uuid.to_string(), conn).await;
+            push_auth_request(user_id.clone(), auth_request_uuid.to_string(), conn).await;
         }
     }
 
     pub async fn send_auth_response(
         &self,
-        user_uuid: &UserId,
+        user_id: &UserId,
         auth_response_uuid: &str,
         approving_device_uuid: DeviceId,
         conn: &mut DbConn,
@@ -529,16 +529,16 @@ impl WebSocketUsers {
             return;
         }
         let data = create_update(
-            vec![("Id".into(), auth_response_uuid.to_owned().into()), ("UserId".into(), user_uuid.to_string().into())],
+            vec![("Id".into(), auth_response_uuid.to_owned().into()), ("UserId".into(), user_id.to_string().into())],
             UpdateType::AuthRequestResponse,
             Some(approving_device_uuid.to_string()),
         );
         if CONFIG.enable_websocket() {
-            self.send_update(user_uuid, &data).await;
+            self.send_update(user_id, &data).await;
         }
 
         if CONFIG.push_enabled() {
-            push_auth_response(user_uuid.clone(), auth_response_uuid.to_string(), approving_device_uuid, conn).await;
+            push_auth_response(user_id.clone(), auth_response_uuid.to_string(), approving_device_uuid, conn).await;
         }
     }
 }
@@ -557,16 +557,16 @@ impl AnonymousWebSocketSubscriptions {
         }
     }
 
-    pub async fn send_auth_response(&self, user_uuid: &UserId, auth_response_uuid: &str) {
+    pub async fn send_auth_response(&self, user_id: &UserId, auth_response_uuid: &str) {
         if !CONFIG.enable_websocket() {
             return;
         }
         let data = create_anonymous_update(
-            vec![("Id".into(), auth_response_uuid.to_owned().into()), ("UserId".into(), user_uuid.to_string().into())],
+            vec![("Id".into(), auth_response_uuid.to_owned().into()), ("UserId".into(), user_id.to_string().into())],
             UpdateType::AuthRequestResponse,
-            user_uuid.clone(),
+            user_id.clone(),
         );
-        self.send_update(user_uuid, &data).await;
+        self.send_update(user_id, &data).await;
     }
 }
 

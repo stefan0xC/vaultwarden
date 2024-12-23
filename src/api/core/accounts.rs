@@ -305,9 +305,9 @@ async fn put_avatar(data: Json<AvatarData>, headers: Headers, mut conn: DbConn) 
     Ok(Json(user.to_json(&mut conn).await))
 }
 
-#[get("/users/<uuid>/public-key")]
-async fn get_public_keys(uuid: UserId, _headers: Headers, mut conn: DbConn) -> JsonResult {
-    let user = match User::find_by_uuid(&uuid, &mut conn).await {
+#[get("/users/<user_id>/public-key")]
+async fn get_public_keys(user_id: UserId, _headers: Headers, mut conn: DbConn) -> JsonResult {
+    let user = match User::find_by_uuid(&user_id, &mut conn).await {
         Some(user) if user.public_key.is_some() => user,
         Some(_) => err_code!("User has no public_key", Status::NotFound.code),
         None => err_code!("User doesn't exist", Status::NotFound.code),
@@ -549,17 +549,17 @@ async fn post_rotatekey(data: Json<KeyData>, headers: Headers, mut conn: DbConn,
     // TODO: See if we can optimize the whole cipher adding/importing and prevent duplicate code and checks.
     Cipher::validate_cipher_data(&data.ciphers)?;
 
-    let user_uuid = &headers.user.uuid;
+    let user_id = &headers.user.uuid;
 
     // TODO: Ideally we'd do everything after this point in a single transaction.
 
-    let mut existing_ciphers = Cipher::find_owned_by_user(user_uuid, &mut conn).await;
-    let mut existing_folders = Folder::find_by_user(user_uuid, &mut conn).await;
-    let mut existing_emergency_access = EmergencyAccess::find_all_by_grantor_uuid(user_uuid, &mut conn).await;
-    let mut existing_memberships = Membership::find_by_user(user_uuid, &mut conn).await;
+    let mut existing_ciphers = Cipher::find_owned_by_user(user_id, &mut conn).await;
+    let mut existing_folders = Folder::find_by_user(user_id, &mut conn).await;
+    let mut existing_emergency_access = EmergencyAccess::find_all_by_grantor_uuid(user_id, &mut conn).await;
+    let mut existing_memberships = Membership::find_by_user(user_id, &mut conn).await;
     // We only rotate the reset password key if it is set.
     existing_memberships.retain(|m| m.reset_password_key.is_some());
-    let mut existing_sends = Send::find_by_user(user_uuid, &mut conn).await;
+    let mut existing_sends = Send::find_by_user(user_id, &mut conn).await;
 
     validate_keydata(
         &data,
