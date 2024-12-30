@@ -49,6 +49,8 @@ pub enum EventType {
     UserClientExportedVault = 1007,
     // UserUpdatedTempPassword = 1008, // Not supported
     // UserMigratedKeyToKeyConnector = 1009, // Not supported
+    // UserRequestedDeviceApproval = 1010, // Not supported
+    // UserTdeOffboardingPasswordSet = 1011, // Not supported
 
     // Cipher
     CipherCreated = 1100,
@@ -94,6 +96,10 @@ pub enum EventType {
     // OrganizationUserFirstSsoLogin = 1510, // Not supported
     OrganizationUserRevoked = 1511,
     OrganizationUserRestored = 1512,
+    // OrganizationUserApprovedAuthRequest = 1513, // Not supported
+    // OrganizationUserRejectedAuthRequest = 1514, // Not supported
+    // OrganizationUserDeleted = 1515, // Not supported
+    OrganizationUserLeft = 1516,
 
     // Organization
     OrganizationUpdated = 1600,
@@ -105,6 +111,7 @@ pub enum EventType {
     // OrganizationEnabledKeyConnector = 1606, // Not supported
     // OrganizationDisabledKeyConnector = 1607, // Not supported
     // OrganizationSponsorshipsSynced = 1608, // Not supported
+    // OrganizationCollectionManagementUpdated = 1609, // Not supported
 
     // Policy
     PolicyUpdated = 1700,
@@ -117,6 +124,13 @@ pub enum EventType {
     // ProviderOrganizationAdded = 1901, // Not supported
     // ProviderOrganizationRemoved = 1902, // Not supported
     // ProviderOrganizationVaultAccessed = 1903, // Not supported
+
+    // OrganizationDomainAdded = 2000, // Not supported
+    // OrganizationDomainRemoved = 2001, // Not supported
+    // OrganizationDomainVerified = 2002, // Not supported
+    // OrganizationDomainNotVerified = 2003, // Not supported
+
+    // SecretRetrieved = 2100, // Not supported
 }
 
 /// Local methods
