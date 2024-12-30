@@ -225,7 +225,7 @@ async fn leave_organization(org_id: &str, headers: Headers, mut conn: DbConn) ->
             }
 
             log_event(
-                EventType::OrganizationUserRemoved as i32,
+                EventType::OrganizationUserLeft as i32,
                 &user_org.uuid,
                 org_id,
                 &headers.user.uuid,
