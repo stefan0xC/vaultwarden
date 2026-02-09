@@ -351,12 +351,20 @@ async fn get_user_collections(headers: Headers, conn: DbConn) -> Json<Value> {
 #[get("/organizations/<identifier>/auto-enroll-status")]
 async fn get_auto_enroll_status(identifier: &str, headers: Headers, conn: DbConn) -> JsonResult {
     let org = if identifier == crate::sso::FAKE_IDENTIFIER {
+        if CONFIG.sso_organization_uuid().is_some() {
+            err!("This should not happen.")
+        }
         match Membership::find_main_user_org(&headers.user.uuid, &conn).await {
             Some(member) => Organization::find_by_uuid(&member.org_uuid, &conn).await,
             None => None,
         }
     } else {
-        Organization::find_by_uuid(&identifier.into(), &conn).await
+        // enroll in configured organization uuid if available
+        if let Some(org_id) = CONFIG.sso_organization_uuid() {
+            Organization::find_by_uuid(&org_id.into(), &conn).await
+        } else {
+            Organization::find_by_uuid(&identifier.into(), &conn).await
+        }
     };
 
     let (id, identifier, rp_auto_enroll) = match org {

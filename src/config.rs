@@ -801,6 +801,8 @@ make_config! {
         sso_enabled:                    bool,   true,   def,    false;
         /// Only SSO login |> Disable Email+Master Password login
         sso_only:                       bool,   true,   def,    false;
+        /// SSO organization uuid |> Specify (existing) Organization for which SSO is enabled.
+        sso_organization_uuid:          String, true,  option;
         /// Allow email association |> Associate existing non-SSO user based on email
         sso_signups_match_email:        bool,   true,   def,    true;
         /// Allow unknown email verification status |> Allowing this with `SSO_SIGNUPS_MATCH_EMAIL=true` open potential account takeover.
