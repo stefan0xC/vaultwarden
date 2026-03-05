@@ -1328,7 +1328,7 @@ impl<'r> FromRequest<'r> for KnownDevice {
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let email = if let Some(email_b64) = req.headers().get_one("X-Request-Email") {
-            let Ok(email_bytes) = data_encoding::BASE64URL_NOPAD.decode(email_b64.as_bytes()) else {
+            let Ok(email_bytes) = data_encoding::BASE64URL.decode(email_b64.as_bytes()) else {
                 return Outcome::Error((Status::BadRequest, "X-Request-Email value failed to decode as base64url"));
             };
             match String::from_utf8(email_bytes) {
